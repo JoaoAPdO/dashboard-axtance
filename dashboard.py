@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
 from dados import obter_dados_planilha
+from ia_engine import preparar_contexto_ia, gerar_diagnostico_ia 
 
+# --- CONSTANTES ---
 COLUNAS_LIXO = [
     'Timestamp', 
     'Pouso Alegre/MG', 
@@ -42,7 +44,6 @@ def renderizar_cabecalho():
     with col2:
         st.write("") 
         if st.button("🔄 Atualizar Dados"):
-            # Limpa o cache global (afeta o @st.cache_data do dados.py)
             st.cache_data.clear() 
             st.rerun()
     st.markdown("---")
@@ -55,7 +56,6 @@ def renderizar_aba_visao_geral(df: pd.DataFrame):
     with col1:
         if 'Sexo' in df.columns:
             st.write("**Distribuição por Sexo**")
-            # Uso obrigatório do reset_index() para evitar bugs de renderização no Altair
             dados_sexo = df['Sexo'].value_counts().reset_index()
             dados_sexo.columns = ['Sexo', 'Quantidade']
             st.bar_chart(dados_sexo, x='Sexo', y='Quantidade')
@@ -94,10 +94,8 @@ def renderizar_aba_analise_detalhada(df: pd.DataFrame):
         for i, pergunta in enumerate(perguntas_selecionadas):
             with cols[i % 2]:
                 st.write(f"**{pergunta}**")
-                
                 contagem = df[pergunta].value_counts().reset_index()
                 contagem.columns = ['Resposta', 'Quantidade']
-                
                 st.bar_chart(contagem, x='Resposta', y='Quantidade')
                 st.markdown("---")
     else:
@@ -107,6 +105,30 @@ def renderizar_aba_dados_crus(df: pd.DataFrame):
     """Renderiza a aba 3 com a tabela do Pandas crua."""
     st.subheader("Visualização dos Dados Crus")
     st.dataframe(df, use_container_width=True)
+
+def renderizar_aba_diagnostico_ia(df: pd.DataFrame):
+    """Renderiza a aba 4 com a integração do Gemini para diagnóstico estratégico."""
+    st.subheader("🤖 Diagnóstico Estratégico com IA")
+    st.write("""
+        Esta aba utiliza Inteligência Artificial para analisar as tendências estatísticas 
+        e os comentários qualitativos da pesquisa, gerando recomendações consultivas.
+    """)
+    
+    if st.button("🚀 Gerar Diagnóstico com Gemini", type="primary"):
+        with st.spinner("O motor de IA está processando os dados e elaborando o plano de ação..."):
+            contexto = preparar_contexto_ia(df, PERGUNTAS_ABERTAS)
+            
+            if "Erro" in contexto or "Aviso:" in contexto:
+                st.warning(contexto)
+            else:
+                diagnostico = gerar_diagnostico_ia(contexto)
+                
+                if "Erro" in diagnostico:
+                    st.error(diagnostico)
+                else:
+                    st.success("Diagnóstico gerado com sucesso!")
+                    with st.container(border=True):
+                        st.markdown(diagnostico)
 
 def main():
     st.set_page_config(page_title="Dashboard Axtance", layout="wide", page_icon="📊")
@@ -120,7 +142,12 @@ def main():
         df = limpar_dados(df)
         st.metric(label="Total de Respostas Coletadas", value=len(df))
         
-        aba1, aba2, aba3 = st.tabs(["📊 Visão Geral", "📈 Análise Detalhada", "📄 Dados Crus"])
+        aba1, aba2, aba3, aba4 = st.tabs([
+            "📊 Visão Geral", 
+            "📈 Análise Detalhada", 
+            "📄 Dados Crus", 
+            "🤖 Diagnóstico IA"
+        ])
         
         with aba1:
             renderizar_aba_visao_geral(df)
@@ -128,6 +155,8 @@ def main():
             renderizar_aba_analise_detalhada(df)
         with aba3:
             renderizar_aba_dados_crus(df)
+        with aba4:
+            renderizar_aba_diagnostico_ia(df)
     else:
         st.error("❌ Ocorreu um erro ao carregar os dados ou a planilha está vazia. Verifique a conexão.")
 

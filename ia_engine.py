@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import streamlit as st
 from google import genai
+from google.genai import types # Nova importação necessária para otimização
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -81,7 +82,8 @@ def preparar_contexto_ia(df, perguntas_abertas):
 
 def gerar_diagnostico_ia(contexto_dados):
     """
-    Conecta ao Gemini-2.5-Flash e gera o diagnóstico estratégico estruturado.
+    Conecta ao Gemini-3.0-Flash e gera o diagnóstico estratégico estruturado.
+    Utiliza as melhores práticas do SDK com System Instructions e controle de temperatura.
     """
     api_key = obter_chave_gemini()
     if not api_key:
@@ -95,15 +97,19 @@ Analise os dados fornecidos e gere um diagnóstico estratégico em Markdown:
 1. **Visão Geral:** Resumo do cenário atual.
 2. **Fortalezas:** O que deve ser mantido.
 3. **Riscos e Alertas:** Pontos críticos de atenção imediata.
-4. **Plano de Action:** 3 passos práticos para melhoria.
+4. **Plano de Ação:** 3 passos práticos para melhoria.
 
-Seja direto, profissional e use apenas os dados fornecidos."""
+Seja direto, profissional e baseie-se estritamente nos dados fornecidos."""
         
-        prompt_completo = f"{prompt_sistema}\n\n{contexto_dados}"
+        configuracao = types.GenerateContentConfig(
+            system_instruction=prompt_sistema,
+            temperature=0.3,
+        )
 
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt_completo,
+            model='gemini-3-flash-preview', # <-- Nome correto na API
+            contents=contexto_dados,
+            config=configuracao      
         )
         
         return response.text

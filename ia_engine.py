@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import streamlit as st
 from google import genai
-from google.genai import types # Nova importação necessária para otimização
+from google.genai import types 
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,7 +26,7 @@ def obter_chave_gemini():
 def preparar_contexto_ia(df, perguntas_abertas):
     """
     Resume o DataFrame em um texto estruturado para a API.
-    Converte strings numéricas e lida com dados categóricos para evitar erros de média.
+    Apresenta os dados numéricos de forma neutra para a IA interpretar o contexto.
     """
     try:
         df_processado = df.copy()
@@ -48,13 +48,14 @@ def preparar_contexto_ia(df, perguntas_abertas):
 
         if colunas_numericas:
             medias = df_processado[colunas_numericas].mean().sort_values(ascending=False)
-            contexto += "🟢 PONTOS FORTES (Maiores Médias):\n"
-            contexto += f"{medias.head(3).to_string()}\n\n"
-            contexto += "🔴 PONTOS CRÍTICOS (Menores Médias):\n"
-            contexto += f"{medias.tail(3).to_string()}\n\n"
+            contexto += "📊 TENDÊNCIA DE FREQUÊNCIA (Médias das respostas numéricas):\n"
+            contexto += "Maiores Médias (Itens que ocorrem com mais frequência / Concordância alta):\n"
+            contexto += f"{medias.head(5).to_string()}\n\n"
+            contexto += "Menores Médias (Itens que ocorrem com menos frequência / Concordância baixa):\n"
+            contexto += f"{medias.tail(5).to_string()}\n\n"
 
         if colunas_categoricas:
-            contexto += "📊 TENDÊNCIAS (Respostas mais frequentes):\n"
+            contexto += "📈 TENDÊNCIAS CATEGÓRICAS (Respostas mais frequentes):\n"
             for col in colunas_categoricas:
                 top_resposta = df_processado[col].value_counts().head(1)
                 if not top_resposta.empty:
@@ -72,7 +73,7 @@ def preparar_contexto_ia(df, perguntas_abertas):
                     for resp in amostra:
                         resumo_abertas += f'  - "{resp}"\n'
 
-        contexto += "🗣️ VOZ DOS COLABORADORES (Amostras):\n"
+        contexto += "🗣️ VOZ DOS COLABORADORES (Amostras qualitativas):\n"
         contexto += resumo_abertas if resumo_abertas else "Nenhum comentário registrado."
 
         return contexto.strip()
@@ -82,8 +83,8 @@ def preparar_contexto_ia(df, perguntas_abertas):
 
 def gerar_diagnostico_ia(contexto_dados):
     """
-    Conecta ao Gemini-3.0-Flash e gera o diagnóstico estratégico estruturado.
-    Utiliza as melhores práticas do SDK com System Instructions e controle de temperatura.
+    Conecta ao Gemini-3-Flash-Preview e gera o diagnóstico estratégico estruturado.
+    Contém regras rígidas de interpretação de escala.
     """
     api_key = obter_chave_gemini()
     if not api_key:
@@ -93,22 +94,28 @@ def gerar_diagnostico_ia(contexto_dados):
         client = genai.Client(api_key=api_key)
         
         prompt_sistema = """Você é um Consultor Sênior em RH e Segurança do Trabalho.
-Analise os dados fornecidos e gere um diagnóstico estratégico em Markdown:
+Analise os dados fornecidos e gere um diagnóstico estratégico em Markdown contendo:
 1. **Visão Geral:** Resumo do cenário atual.
-2. **Fortalezas:** O que deve ser mantido.
+2. **Fortalezas:** O que está funcionando bem e deve ser mantido.
 3. **Riscos e Alertas:** Pontos críticos de atenção imediata.
 4. **Plano de Ação:** 3 passos práticos para melhoria.
+
+⚠️ REGRA CRUCIAL DE INTERPRETAÇÃO DOS DADOS:
+As perguntas da pesquisa utilizam uma escala onde o valor MÍNIMO (ex: 1) significa "Nunca" e valores MAIORES (ex: 4 ou 5) significam "Com muita frequência".
+- Uma média BAIXA (ex: 1.0) em perguntas negativas (como dores, desmaios, estresse) é um PONTO FORTE (excelente, pois não ocorre).
+- Uma média ALTA em perguntas negativas é um RISCO CRÍTICO.
+Use seu raciocínio lógico para interpretar se a média de cada item é positiva ou negativa com base no contexto da pergunta.
 
 Seja direto, profissional e baseie-se estritamente nos dados fornecidos."""
         
         configuracao = types.GenerateContentConfig(
             system_instruction=prompt_sistema,
-            temperature=0.3,
+            temperature=0.3, 
         )
 
         response = client.models.generate_content(
-            model='gemini-3-flash-preview', # <-- Nome correto na API
-            contents=contexto_dados,
+            model='gemini-3-flash-preview',
+            contents=contexto_dados, 
             config=configuracao      
         )
         

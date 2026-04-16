@@ -81,45 +81,58 @@ def preparar_contexto_ia(df, perguntas_abertas):
     except Exception as e:
         return f"Erro ao processar dados: {str(e)}"
 
-def gerar_diagnostico_ia(contexto_dados):
+def gerar_diagnostico_ia(contexto_dados, arquivos_conhecimento=None):
     """
-    Conecta ao Gemini-3-Flash-Preview e gera o diagnóstico estratégico estruturado.
-    Contém regras rígidas de interpretação de escala.
+    Conecta ao Gemini-2.5-Flash via STREAMING.
+    Transformada em um gerador nativo para manter a conexão HTTP ativa
+    até que o Streamlit termine de desenhar o texto na tela.
     """
+    if arquivos_conhecimento is None:
+        arquivos_conhecimento = []
+
     api_key = obter_chave_gemini()
     if not api_key:
-        return "Erro: Chave de API não configurada corretamente."
+        yield "❌ Erro: Chave de API não configurada corretamente."
+        return
 
     try:
         client = genai.Client(api_key=api_key)
         
-        prompt_sistema = """Você é um Consultor Sênior em RH e Segurança do Trabalho.
+        prompt_sistema = """Você é um Consultor Sênior em RH, Saúde Ocupacional e Compliance Trabalhista no Brasil.
 Analise os dados fornecidos e gere um diagnóstico estratégico em Markdown contendo:
 1. **Visão Geral:** Resumo do cenário atual.
 2. **Fortalezas:** O que está funcionando bem e deve ser mantido.
-3. **Riscos e Alertas:** Pontos críticos de atenção imediata.
+3. **Riscos e Alertas (Jurídicos/Ocupacionais):** Pontos críticos de atenção.
 4. **Plano de Ação:** 3 passos práticos para melhoria.
 
-⚠️ REGRA CRUCIAL DE INTERPRETAÇÃO DOS DADOS:
-As perguntas da pesquisa utilizam uma escala onde o valor MÍNIMO (ex: 1) significa "Nunca" e valores MAIORES (ex: 4 ou 5) significam "Com muita frequência".
-- Uma média BAIXA (ex: 1.0) em perguntas negativas (como dores, desmaios, estresse) é um PONTO FORTE (excelente, pois não ocorre).
-- Uma média ALTA em perguntas negativas é um RISCO CRÍTICO.
-Use seu raciocínio lógico para interpretar se a média de cada item é positiva ou negativa com base no contexto da pergunta.
+⚠️ REGRA CRUCIAL 1 (INTERPRETAÇÃO):
+A pesquisa usa uma escala onde o valor MÍNIMO (ex: 1) = "Nunca" e MAIORES (ex: 5) = "Sempre".
+- Média BAIXA em perguntas negativas (dores, acidentes) é EXCELENTE (não ocorre).
+- Média ALTA em perguntas negativas é RISCO CRÍTICO.
 
-Seja direto, profissional e baseie-se estritamente nos dados fornecidos."""
+📚 REGRA CRUCIAL 2 (EMBASAMENTO LEGAL - NRs):
+Você receberá arquivos contendo a Legislação Trabalhista (Normas Regulamentadoras - NRs). 
+Baseie seu diagnóstico e plano de ação ESTRITAMENTE nestes documentos e nos dados da pesquisa. 
+Sempre que recomendar uma ação ou identificar um risco grave, CITE OBRIGATORIAMENTE a norma e o item correspondente (Ex: "Segundo a NR-17, item X...", "De acordo com o PCMSO da NR-07..."). Não invente normas ou leis que não estejam nos documentos anexados.
+
+Seja direto, técnico e profissional."""
         
         configuracao = types.GenerateContentConfig(
             system_instruction=prompt_sistema,
             temperature=0.3, 
         )
 
-        response = client.models.generate_content(
-            model='gemini-3-flash-preview',
-            contents=contexto_dados, 
+        conteudo_chamada = arquivos_conhecimento + [contexto_dados]
+
+        response_stream = client.models.generate_content_stream(
+            model='gemini-2.5-flash',
+            contents=conteudo_chamada, 
             config=configuracao      
         )
         
-        return response.text
+        for chunk in response_stream:
+            if chunk.text:
+                yield chunk.text
 
     except Exception as e:
-        return f"Erro na comunicação com a IA: {str(e)}"
+        yield f"❌ Erro na comunicação com a IA: {str(e)}"

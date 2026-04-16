@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 from dados import obter_dados_planilha
 from ia_engine import preparar_contexto_ia, gerar_diagnostico_ia 
+from knowledge_manager import carregar_base_conhecimento, listar_nomes_documentos # <- NOVA IMPORTAÇÃO
 
-# --- CONSTANTES ---
 COLUNAS_LIXO = [
     'Timestamp', 
     'Pouso Alegre/MG', 
@@ -107,28 +107,36 @@ def renderizar_aba_dados_crus(df: pd.DataFrame):
     st.dataframe(df, use_container_width=True)
 
 def renderizar_aba_diagnostico_ia(df: pd.DataFrame):
-    """Renderiza a aba 4 com a integração do Gemini para diagnóstico estratégico."""
-    st.subheader("🤖 Diagnóstico Estratégico com IA")
+    """Renderiza a aba 4 com a integração do Gemini e base de conhecimento (NRs)."""
+    st.subheader("🤖 Diagnóstico e Auditoria com IA")
     st.write("""
-        Esta aba utiliza Inteligência Artificial para analisar as tendências estatísticas 
-        e os comentários qualitativos da pesquisa, gerando recomendações consultivas.
+        O motor de Inteligência Artificial cruza os dados da pesquisa de clima 
+        diretamente com a Legislação Trabalhista vigente para gerar recomendações seguras.
     """)
     
-    if st.button("🚀 Gerar Diagnóstico com Gemini", type="primary"):
-        with st.spinner("O motor de IA está processando os dados e elaborando o plano de ação..."):
-            contexto = preparar_contexto_ia(df, PERGUNTAS_ABERTAS)
+    arquivos_base = carregar_base_conhecimento()
+    
+    if arquivos_base:
+        nomes_docs = listar_nomes_documentos(arquivos_base)
+        with st.expander(f"📚 Base de Conhecimento Ativa ({len(nomes_docs)} documentos)", expanded=False):
+            st.write("A IA utilizará os seguintes documentos oficiais para embasar a análise:")
+            for nome in nomes_docs:
+                st.success(f"✓ {nome}")
+    else:
+        st.warning("⚠️ Nenhuma base de conhecimento encontrada na pasta. A IA gerará um diagnóstico genérico.")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    if st.button("🚀 Gerar Diagnóstico de Compliance Ocupacional", type="primary"):
+        contexto = preparar_contexto_ia(df, PERGUNTAS_ABERTAS)
+        
+        if "Erro" in contexto or "Aviso:" in contexto:
+            st.warning(contexto)
+        else:
+            st.info("A IA está analisando as NRs e redigindo o relatório em tempo real...")
             
-            if "Erro" in contexto or "Aviso:" in contexto:
-                st.warning(contexto)
-            else:
-                diagnostico = gerar_diagnostico_ia(contexto)
-                
-                if "Erro" in diagnostico:
-                    st.error(diagnostico)
-                else:
-                    st.success("Diagnóstico gerado com sucesso!")
-                    with st.container(border=True):
-                        st.markdown(diagnostico)
+            with st.container(border=True):
+                st.write_stream(gerar_diagnostico_ia(contexto, arquivos_conhecimento=arquivos_base))
 
 def main():
     st.set_page_config(page_title="Dashboard Axtance", layout="wide", page_icon="📊")

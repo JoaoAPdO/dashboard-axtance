@@ -2,3 +2,5 @@
 __pycache__/
 credentials.json
 .env
+base_conhecimento/privado/
+base_conhecimento/internos/
